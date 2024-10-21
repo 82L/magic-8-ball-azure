@@ -12,36 +12,32 @@ using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
+using Azure.Storage.Blobs;
 
 namespace MagicBall.Function
 {
     public class MagicBallFunction
     {
-        private readonly ILogger<MagicBallFunction> _logger;
 
-        public MagicBallFunction(ILogger<MagicBallFunction> logger)
-        {
-            _logger = logger;
-        }
 
         [FunctionName("MagicBallFunction")]
-        public async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Anonymous, "get", "post")] HttpRequest req)
+        public async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = null)] HttpRequest req, ILogger log)
         {
-           var exceptions = new List<Exception>();
+            var exceptions = new List<Exception>();
 
             try
             {
-                _logger.LogInformation("Starting function");
+                log.LogInformation("Starting function");
 
                 if (req.Body.Length == 0)
                 {
-                    _logger.LogInformation("Invalid request");
+                    log.LogInformation("Invalid request");
                     return new NoContentResult();
                 }
 
                 string CSSubscriptionKey = Environment.GetEnvironmentVariable("SPEECH_KEY");
                 if(CSSubscriptionKey == null){
-                    _logger.LogInformation("No Speech Key");
+                    log.LogInformation("No Speech Key");
                     return new NoContentResult();
                 }
                 string accessToken;
@@ -52,46 +48,59 @@ namespace MagicBall.Function
                 try
                 {
                     accessToken = await auth.FetchTokenAsync().ConfigureAwait(false);
-                    _logger.LogInformation("Successfully obtained an access token");
+                    log.LogInformation("Successfully obtained an access token");
                 }
                 catch (Exception)
                 {
-                    _logger.LogInformation("Failed to obtain an access token");
+                    log.LogInformation("Failed to obtain an access token");
                     return new UnauthorizedResult();
                 }
 
-                using (var client = new HttpClient())
+                        
+                string Connection = Environment.GetEnvironmentVariable("AzureWebJobsStorage");
+                string containerName = Environment.GetEnvironmentVariable("ContainerName");
+                    
+                Stream myBlob = new MemoryStream();
+                myBlob = req.Body;
+                var blobClient = new BlobContainerClient(Connection, containerName);
+                var blob = blobClient.GetBlobClient("file.wav");
+             //   var blobHeader = new Azure.Storage.Blobs.Models.BlobHttpHeaders();
+               // blobHeader.ContentType = "audio/wav";
+                //blob.SetHttpHeaders(blobHeader);
+                var result = await blob.UploadAsync(myBlob);
+
+               /* using (var client = new HttpClient())
                 {
                     using (var request = new HttpRequestMessage())
                     {
-                        StringValues lang;
-
-                        if (req.Headers.TryGetValue("Language", out lang))
-                        {
-                            lang = "fr-FR";
-                        }
+                        string lang = "fr-FR";
 
                         // Set the HTTP method
                         request.Method = HttpMethod.Post;
 
                         // Construct the URI
-                        request.RequestUri = new Uri(Constants.AzureSpeechToTextURL + "?language=" + lang);
-
+                        request.RequestUri = new Uri(Constants.AzureSpeechToTextURL);
+                        
                         // Set the content to be the WAV file at 256 kbps, 16 kHz, mono
                         byte[] AudioFile = new byte[req.Body.Length];
-                        if (req.Body.Read(AudioFile, 0, (int)req.Body.Length) != req.Body.Length)
+                        if (myBlob =req.Body.Read(AudioFile, 0, (int)req.Body.Length) != req.Body.Length)
                         {
-                            _logger.LogInformation("Invalid audio file");
+                            log.LogInformation("Invalid audio file");
                             return new NoContentResult();
-                        }
-                        request.Content = new ByteArrayContent(AudioFile);
+                        }*/
 
+                    
+
+                        //request.Content = new ByteArrayContent(AudioFile);
+/*  */
                         // Set additional header, such as Authorization and Content-type
-                        request.Headers.Add("Authorization", "Bearer " + accessToken);
+                        /*request.Headers.Add("Authorization", "Bearer " + accessToken);
+                        request.Headers.Add("locale", lang);
+                        request.Headers.Add("contentUrls", ["url"]);
                         request.Content.Headers.TryAddWithoutValidation("Content-Type", "audio/wav; codecs=audio/pcm; samplerate=16000");
 
                         // Create a request
-                        _logger.LogInformation("Calling the STT service. Please wait...");
+                        log.LogInformation("Calling the STT service. Please wait...");
 
                         using (var response = await client.SendAsync(request).ConfigureAwait(false))
                         {
@@ -103,18 +112,18 @@ namespace MagicBall.Function
                             if(jsonObject == null) return new NoContentResult();
                             string textResponse = jsonObject.Value<string>("DisplayText");
 
-                            _logger.LogInformation($"Translation: {textResponse}");
+                            log.LogInformation($"Translation: {textResponse}");
 
                             return new OkObjectResult(textResponse);
                         }
                     }
-                }
+                }*/
             }
             catch (Exception e)
             {
                 // We need to keep processing the rest of the batch - capture this exception and continue.
                 // Also, consider capturing details of the message that failed processing so it can be processed again later.
-                _logger.LogError("Problem", e);
+                log.LogError("Problem", e);
                 exceptions.Add(e);
             }
 
