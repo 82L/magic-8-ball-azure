@@ -21,7 +21,7 @@ namespace MagicBall.Function
 
 
         [FunctionName("MagicBallFunction")]
-        public async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = null)] HttpRequest req, ILogger log)
+        public async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Anonymous, "post", "put", Route = null)] HttpRequest req, ILogger log)
         {
             var exceptions = new List<Exception>();
 
@@ -64,9 +64,6 @@ namespace MagicBall.Function
                 myBlob = req.Body;
                 var blobClient = new BlobContainerClient(Connection, containerName);
                 var blob = blobClient.GetBlobClient("file.wav");
-             //   var blobHeader = new Azure.Storage.Blobs.Models.BlobHttpHeaders();
-               // blobHeader.ContentType = "audio/wav";
-                //blob.SetHttpHeaders(blobHeader);
                 var result = await blob.UploadAsync(myBlob);
 
                /* using (var client = new HttpClient())
