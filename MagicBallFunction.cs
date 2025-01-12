@@ -6,8 +6,6 @@ using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
-using Microsoft.Extensions.Primitives;
 using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
 using System.Linq;
@@ -59,42 +57,33 @@ namespace MagicBall.Function
                         
                 string Connection = Environment.GetEnvironmentVariable("AzureWebJobsStorage");
                 string containerName = Environment.GetEnvironmentVariable("ContainerName");
+                string storageName = Environment.GetEnvironmentVariable("StorageName");
+                string tokenStorage = Environment.GetEnvironmentVariable("SAS_TOKEN");
+                    
                     
                 Stream myBlob = new MemoryStream();
                 myBlob = req.Body;
                 var blobClient = new BlobContainerClient(Connection, containerName);
                 var blob = blobClient.GetBlobClient("file.wav");
-                var result = await blob.UploadAsync(myBlob);
+                var result = await blob.UploadAsync(myBlob, overwrite: true);
 
-               /* using (var client = new HttpClient())
+               using (var client = new HttpClient())
                 {
                     using (var request = new HttpRequestMessage())
                     {
-                        string lang = "fr-FR";
+                        string lang = "en-US";
 
                         // Set the HTTP method
                         request.Method = HttpMethod.Post;
 
                         // Construct the URI
                         request.RequestUri = new Uri(Constants.AzureSpeechToTextURL);
-                        
-                        // Set the content to be the WAV file at 256 kbps, 16 kHz, mono
-                        byte[] AudioFile = new byte[req.Body.Length];
-                        if (myBlob =req.Body.Read(AudioFile, 0, (int)req.Body.Length) != req.Body.Length)
-                        {
-                            log.LogInformation("Invalid audio file");
-                            return new NoContentResult();
-                        }*/
+                            
 
-                    
-
-                        //request.Content = new ByteArrayContent(AudioFile);
-/*  */
                         // Set additional header, such as Authorization and Content-type
-                        /*request.Headers.Add("Authorization", "Bearer " + accessToken);
+                        request.Headers.Add("Authorization", "Bearer " + accessToken);
                         request.Headers.Add("locale", lang);
-                        request.Headers.Add("contentUrls", ["url"]);
-                        request.Content.Headers.TryAddWithoutValidation("Content-Type", "audio/wav; codecs=audio/pcm; samplerate=16000");
+                        request.Headers.Add("contentContainerUrl", $"https://{storageName}.blob.core.windows.net/{containerName}?{tokenStorage}");
 
                         // Create a request
                         log.LogInformation("Calling the STT service. Please wait...");
@@ -114,7 +103,7 @@ namespace MagicBall.Function
                             return new OkObjectResult(textResponse);
                         }
                     }
-                }*/
+                }
             }
             catch (Exception e)
             {
