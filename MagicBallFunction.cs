@@ -29,41 +29,43 @@ namespace MagicBall.Function
                 return new NoContentResult();
             }
             string serviceRegion = "francecentral";
-            using (var audioStream = new MemoryStream())
+            var file = req.Form.Files.GetFile("audioFile");
+
+            if (file == null || file.Length == 0)
             {
-                await req.Body.CopyToAsync(audioStream);
-                audioStream.Position = 0;
+                return new BadRequestObjectResult("Missing AudioFile");
+            }
 
-                // Créer une configuration de parole
-                var speechConfig = SpeechConfig.FromSubscription(speechSubscriptionKey, serviceRegion);
-                speechConfig.SpeechRecognitionLanguage = "en-US";
-                // Créer un flux d'entrée audio à partir du stream
-                var pushStream = AudioInputStream.CreatePushStream();
-                var audioConfig = AudioConfig.FromStreamInput(pushStream);
+            var tempFilePath = Path.Combine(Path.GetTempPath(), Path.GetFileName(file.FileName));
+            
+            using (var fileStream = new FileStream(tempFilePath, FileMode.Create))
+            {
+                await file.CopyToAsync(fileStream);
+            }
 
-                // Pousser le contenu du stream dans le PushAudioInputStream
-                pushStream.Write(audioStream.ToArray());
-                pushStream.Close();
+            using AudioConfig audioConfig = AudioConfig.FromWavFileInput(tempFilePath);
+            var speechConfig = SpeechConfig.FromSubscription(speechSubscriptionKey, serviceRegion);
+            speechConfig.SpeechRecognitionLanguage = "fr-FR";
 
-                // Créer un objet SpeechRecognizer
-                using (var recognizer = new SpeechRecognizer(speechConfig, audioConfig))
+            // Créer un objet SpeechRecognizer
+            using (var recognizer = new SpeechRecognizer(speechConfig, audioConfig))
+            {
+                var result = await recognizer.RecognizeOnceAsync();
+
+                if (result.Reason == ResultReason.RecognizedSpeech)
                 {
-                    var result = await recognizer.RecognizeOnceAsync();
-
-                    if (result.Reason == ResultReason.RecognizedSpeech)
-                    {
-                        return new OkObjectResult(result.Text);
-                    }
-                    else if (result.Reason == ResultReason.NoMatch)
-                    {
-                        return new BadRequestObjectResult("Aucune parole reconnue.");
-                    }
-                    else
-                    {
-                        return new BadRequestObjectResult($"Erreur de reconnaissance : {result.Reason}");
-                    }
+                    return new OkObjectResult(result.Text);
+                }
+                else if (result.Reason == ResultReason.NoMatch)
+                {
+                    return new BadRequestObjectResult("Aucune parole reconnue.");
+                }
+                else
+                {
+                    return new BadRequestObjectResult($"Erreur de reconnaissance : {result.Reason}");
                 }
             }
+
         }
     }
 }
