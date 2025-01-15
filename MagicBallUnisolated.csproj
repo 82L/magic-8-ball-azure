@@ -4,11 +4,16 @@
     <AzureFunctionsVersion>v4</AzureFunctionsVersion>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Azure.AI.OpenAI" Version="2.1.0" />
     <PackageReference Include="Azure.Storage.Blobs" Version="12.22.2" />
     <PackageReference Include="Microsoft.NET.Sdk.Functions" Version="4.5.0" />
+    <PackageReference Include="System.Memory.Data" Version="6.0.0.0" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.CognitiveServices.Speech" Version="1.42.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <FunctionsPreservedDependencies Include="System.Memory.Data.dll" />
   </ItemGroup>
   <ItemGroup>
     <None Update="host.json">
@@ -18,5 +23,6 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>Never</CopyToPublishDirectory>
     </None>
+    <None Remove="response.wav" />
   </ItemGroup>
 </Project>
