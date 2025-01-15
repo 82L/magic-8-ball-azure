@@ -60,7 +60,7 @@ namespace MagicBall.Function
 
             bool skipOpenAi = false;
             string aiResponse = "Voix non reconnue.";
-            
+
             if (recognitionResult.Reason != ResultReason.RecognizedSpeech)
             {
                 log.LogError(timeStamp + ": Voix non reconnue.");
@@ -94,13 +94,17 @@ namespace MagicBall.Function
                 if (!openAiResponse.IsSuccessStatusCode)
                 {
                     log.LogError(timeStamp + ": Open AI ne fonctionne pas");
-                    aiResponse = "La voyante n'est pas joignable";
+                    aiResponse = "La boule magique est cassée";
+                }
+                else
+                {
+                    var openAiResponseContent = await openAiResponse.Content.ReadAsStringAsync();
+                    var openAiResult = JsonSerializer.Deserialize<JsonElement>(openAiResponseContent);
+                    aiResponse = openAiResult.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString();
+                    log.LogInformation(timeStamp + $": AI Response: {aiResponse}");
+
                 }
 
-                var openAiResponseContent = await openAiResponse.Content.ReadAsStringAsync();
-                var openAiResult = JsonSerializer.Deserialize<JsonElement>(openAiResponseContent);
-                aiResponse = openAiResult.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString();
-                log.LogInformation(timeStamp + $": AI Response: {aiResponse}");
 
             }
             // Convert AI response to speech
