@@ -6,9 +6,10 @@
   <ItemGroup>
     <PackageReference Include="Azure.Storage.Blobs" Version="12.22.2" />
     <PackageReference Include="Microsoft.NET.Sdk.Functions" Version="4.5.0" />
+    <PackageReference Include="Azure.AI.OpenAI" Version="2.1.0" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.CognitiveServices.Speech" Version="1.42.0" />
+   <PackageReference Include="Microsoft.CognitiveServices.Speech" Version="1.42.0" />
   </ItemGroup>
   <ItemGroup>
     <None Update="host.json">
