@@ -43,8 +43,8 @@ namespace MagicBall.Function
         ];
 
 
-        [FunctionName("MagicBallFunction")]
-        public static async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Anonymous, "post", "put", Route = null)] HttpRequest req, ILogger log)
+        [FunctionName("MagicBallAsk")]
+        public static async Task<IActionResult> MagicBallAsk([HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = null)] HttpRequest req, ILogger log)
         {
          
 
@@ -104,19 +104,12 @@ namespace MagicBall.Function
                 log.LogInformation($"Ai reponse :{aiResponse}");
                 // Convert AI response to speech
 
-
-                var audioBytes = await TextToSpeech(aiResponse, speechConfig);
-
-                if (audioBytes == null)
-                {
-                    return new BadRequestObjectResult("Error generating audio from AI response.");
-                }
+                
+                return new OkObjectResult(aiResponse);
+               
 
                 // Return the audio file
-                return new FileContentResult(audioBytes, "audio/wav")
-                {
-                    FileDownloadName = "response.wav"
-                };
+             
             }
             catch (Exception ex)
             {
@@ -136,19 +129,78 @@ namespace MagicBall.Function
             return recognitionResult.Text;
         }
 
-        private static async Task<byte[]> TextToSpeech(string text, SpeechConfig speechConfig)
+        [FunctionName("MagicBallSpeech")]
+        public static async Task<IActionResult> MagicBallSpeech([HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = null)] HttpRequest req, ILogger log)
         {
-            using var synthesizer = new SpeechSynthesizer(speechConfig);
-            using var stream = AudioOutputStream.CreatePullStream();
-            speechConfig.SetSpeechSynthesisOutputFormat(SpeechSynthesisOutputFormat.Raw16Khz16BitMonoPcm);
-            var synthesisResult = await synthesizer.SpeakTextAsync(text);
-
-            if (synthesisResult.Reason != ResultReason.SynthesizingAudioCompleted)
+            string speechSubscriptionKey = Environment.GetEnvironmentVariable("SPEECH_KEY");
+            string serviceRegion = "francecentral";
+            if (string.IsNullOrEmpty(speechSubscriptionKey))
             {
-                return null;
+                log.LogError("Missing required API keys.");
+                return new NoContentResult();
             }
-            return synthesisResult.AudioData;
 
+            string textToSpeak = await new StreamReader(req.Body).ReadToEndAsync();;
+            
+            log.LogInformation($"Getting text : {textToSpeak}.");
+            if (string.IsNullOrEmpty(textToSpeak))
+            {
+                log.LogError("Missing text for TTS.");
+                return new BadRequestObjectResult("Missing text for TTS.");
+            }
+            
+            try
+            {
+                var speechConfig = SpeechConfig.FromSubscription(speechSubscriptionKey, serviceRegion);
+                speechConfig.SpeechSynthesisVoiceName = "en-US-OnyxTurboMultilingualNeural";
+                using var synthesizer = new SpeechSynthesizer(speechConfig);
+
+                using var audioStream = AudioOutputStream.CreatePullStream();
+                using var audioConfig = AudioConfig.FromStreamOutput(audioStream);
+                var synthesisTask  =  synthesizer.SpeakTextAsync(textToSpeak);
+                
+                // if (synthesisTask.AudioData == null)
+                // {
+                //     return new BadRequestObjectResult("Error generating audio from AI response.");
+                // }
+                //
+                // return new FileContentResult(synthesisTask.AudioData, "audio/wav")
+                // {
+                //     FileDownloadName = "response.wav"
+                // };
+
+                // var response = req.HttpContext.Response;
+                // response.ContentType = "audio/wav";
+                // response.Headers["Transfer-Encoding"] = "chunked";
+                // byte[] buffer = new byte[4096];
+                // uint bytesRead;
+                // Stream audio to the response as it is generated
+                // response.StatusCode = 200;
+                // log.LogInformation($"Before Buffer while");
+                // while ((bytesRead = audioStream.Read(buffer)) > 0)
+                // {
+                //     log.LogInformation($"Read {bytesRead} bytes.");
+                //     await response.Body.WriteAsync(buffer, 0, (int)bytesRead);
+                //     await response.Body.FlushAsync();
+                // }
+                
+                log.LogInformation($"After buffer while");
+                // Stream audio to the response
+                await synthesisTask;
+
+                return new FileContentResult(synthesisTask.Result.AudioData, "audio/wav")
+                {
+                    FileDownloadName = "response.wav"
+                };
+                return new OkResult();
+            }
+            catch (Exception ex)
+            {
+  
+                log.LogError($"Exception: {ex}");
+                return new BadRequestObjectResult("Error processing request.");
+            }
+            
         }
 
         private static string GetAIResponse(string prompt, string aiInstructions, string key, string endpoint, ILogger log)
