@@ -55,7 +55,7 @@ namespace MagicBall.Function
             string serviceRegion = "francecentral";
             log.LogInformation("Testing Env Variables.");
             if (string.IsNullOrEmpty(speechSubscriptionKey) || string.IsNullOrEmpty(openAiApiKey) 
-            || string.IsNullOrEmpty(openAiApiEndpoint) || string.IsNullOrEmpty(aiInstructions))
+                                                            || string.IsNullOrEmpty(openAiApiEndpoint) || string.IsNullOrEmpty(aiInstructions))
             {
                 log.LogError("Missing required API keys.");
                 return new NoContentResult();
@@ -68,52 +68,61 @@ namespace MagicBall.Function
                 log.LogError("Missing AudioFile");
                 return new BadRequestObjectResult("Missing AudioFile");
             }
-            log.LogInformation("Saving audio file int temp path.");
-            var tempFilePath = Path.Combine(Path.GetTempPath(), "audioFile.wav");
-            await using (var fileStream = new FileStream(tempFilePath, FileMode.Create))
+            try
             {
-                await l_stream.CopyToAsync(fileStream);
+                log.LogInformation("Saving audio file int temp path.");
+                var tempFilePath = Path.Combine(Path.GetTempPath(), "audioFile.wav");
+                await using (var fileStream = new FileStream(tempFilePath, FileMode.Create))
+                {
+                    await l_stream.CopyToAsync(fileStream);
+                }
+
+                var speechConfig = SpeechConfig.FromSubscription(speechSubscriptionKey, serviceRegion);
+                speechConfig.SpeechRecognitionLanguage = "fr-FR";
+                speechConfig.SpeechSynthesisVoiceName = "en-US-OnyxTurboMultilingualNeural";
+
+
+                bool skipOpenAi = false;
+                string aiResponse = "Voix non reconnue.";
+                log.LogInformation("Getting voice text.");
+           
+                string recognizedText = await SpeechToText(tempFilePath, speechConfig);
+                if (string.IsNullOrEmpty(recognizedText))
+                {
+                    aiResponse = "Voix non reconnue.";
+                    log.LogInformation("Voix non reconnue !");
+                    skipOpenAi = true;
+                }
+
+                log.LogInformation($"Recognized Text: {recognizedText}");
+                if (!skipOpenAi)
+                {
+                    log.LogInformation("Trying to get Ai reponse");
+                    aiResponse = GetAIResponse(recognizedText, aiInstructions, openAiApiKey, openAiApiEndpoint, log);
+                }
+
+                log.LogInformation($"Ai reponse :{aiResponse}");
+                // Convert AI response to speech
+
+
+                var audioBytes = await TextToSpeech(aiResponse, speechConfig);
+
+                if (audioBytes == null)
+                {
+                    return new BadRequestObjectResult("Error generating audio from AI response.");
+                }
+
+                // Return the audio file
+                return new FileContentResult(audioBytes, "audio/wav")
+                {
+                    FileDownloadName = "response.wav"
+                };
             }
-
-            var speechConfig = SpeechConfig.FromSubscription(speechSubscriptionKey, serviceRegion);
-            speechConfig.SpeechRecognitionLanguage = "fr-FR";
-            speechConfig.SpeechSynthesisVoiceName = "en-US-OnyxTurboMultilingualNeural";
-
-
-            bool skipOpenAi = false;
-            string aiResponse = "Voix non reconnue.";
-            log.LogInformation("Getting voice text.");
-            string recognizedText = await SpeechToText(tempFilePath, speechConfig);
-            if (string.IsNullOrEmpty(recognizedText))
+            catch (Exception ex)
             {
-                aiResponse = "Voix non reconnue.";
-                log.LogInformation("Voix non reconnue !");
-                skipOpenAi = true;
+                log.LogError($"Exception : {ex}");
+                return new BadRequestObjectResult("Error processing request.");
             }
-
-            log.LogInformation($"Recognized Text: {recognizedText}");
-            if (!skipOpenAi)
-            {
-                log.LogInformation("Trying to get Ai reponse");
-                aiResponse = GetAIResponse(recognizedText,aiInstructions, openAiApiKey, openAiApiEndpoint, log);
-            }
-
-            log.LogInformation($"Ai reponse :{aiResponse}");
-            // Convert AI response to speech
-
-
-            var audioBytes = await TextToSpeech(aiResponse, speechConfig);
-
-            if (audioBytes == null)
-            {
-                return new BadRequestObjectResult("Error generating audio from AI response.");
-            }
-
-            // Return the audio file
-            return new FileContentResult(audioBytes, "audio/wav")
-            {
-                FileDownloadName = "response.wav"
-            };
         }
         private static async Task<string> SpeechToText(string tempFilePath, SpeechConfig speechConfig)
         {
@@ -156,9 +165,9 @@ namespace MagicBall.Function
             ChatCompletion completion = chatClient.CompleteChat(
                 new ChatMessage[]
                 {
-                new SystemChatMessage(
-                    aiInstructionsText ),
-                new UserChatMessage(prompt)
+                    new SystemChatMessage(
+                        aiInstructionsText ),
+                    new UserChatMessage(prompt)
                 }
             );
             log.LogInformation("messageSent");
