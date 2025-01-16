@@ -20,58 +20,59 @@ namespace MagicBall.Function
     {
         
         private static readonly string[] MagicBallAnswers = [
-            "It is certain.",
-            "It is decidedly so.",
-            "Without a doubt.",
-            "Yes definitely.",
-            "You may rely on it.",
-            "As I see it, yes.",
-            "Most likely.",
-            "Outlook good.",
-            "Yes",
-            "Signs point to yes.",
-            "Reply hazy, try again.",
-            "Ask again later.",
-            "Better not tell you now.",
-            "Cannot predict now.",
-            "Concentrate and ask again.",
-            "Don't count on it.",
-            "My reply is no.",
-            "My sources say no.",
-            "Outlook not so good.",
-            "Very doubtful.",
+            "C'est certain.",
+            "C'est décidément le cas.",
+            "Sans aucun doute.",
+            "Oui définitivement.",
+            "Tu peux compter dessus.",
+            "Comme je le vois, oui.",
+            "Probablement.",
+            "Les perspectives sont bonnes.",
+            "Oui.",
+            "Les signes indiquent oui.",
+            "Réponse floue, essayez à nouveau.",
+            "Repose la question plus tard.",
+            "Mieux vaut ne pas te le dire maintenant.",
+            "Impossible de prédire maintenant.",
+            "Concentre-toi et redemande.",
+            "Ne compte pas dessus.",
+            "Ma réponse est non.",
+            "Mes sources disent que non.",
+            "Les perspectives ne sont pas très bonnes.",
+            "Très peu probable.",
         ];
 
 
         [FunctionName("MagicBallFunction")]
         public static async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Anonymous, "post", "put", Route = null)] HttpRequest req, ILogger log)
         {
-            log.LogInformation("Processing Speech-to-Text request.");
+         
 
             string speechSubscriptionKey = Environment.GetEnvironmentVariable("SPEECH_KEY");
             string openAiApiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
             string openAiApiEndpoint = Environment.GetEnvironmentVariable("OPENAI_API_ENDPOINT");
             string aiInstructions= Environment.GetEnvironmentVariable("AI_INSTRUCTIONS");
             string serviceRegion = "francecentral";
-
+            log.LogInformation("Testing Env Variables.");
             if (string.IsNullOrEmpty(speechSubscriptionKey) || string.IsNullOrEmpty(openAiApiKey) 
             || string.IsNullOrEmpty(openAiApiEndpoint) || string.IsNullOrEmpty(aiInstructions))
             {
                 log.LogError("Missing required API keys.");
                 return new NoContentResult();
             }
-
-
-            var file = req.Form.Files.GetFile("audioFile");
-            if (file == null || file.Length == 0)
+            log.LogInformation("Getting audiofile.");
+            Stream l_stream = req.Body;
+            
+            if (l_stream == null || l_stream.Length == 0)
             {
+                log.LogError("Missing AudioFile");
                 return new BadRequestObjectResult("Missing AudioFile");
             }
-
-            var tempFilePath = Path.Combine(Path.GetTempPath(), Path.GetFileName(file.FileName));
-            using (var fileStream = new FileStream(tempFilePath, FileMode.Create))
+            log.LogInformation("Saving audio file int temp path.");
+            var tempFilePath = Path.Combine(Path.GetTempPath(), "audioFile.wav");
+            await using (var fileStream = new FileStream(tempFilePath, FileMode.Create))
             {
-                await file.CopyToAsync(fileStream);
+                await l_stream.CopyToAsync(fileStream);
             }
 
             var speechConfig = SpeechConfig.FromSubscription(speechSubscriptionKey, serviceRegion);
@@ -81,7 +82,7 @@ namespace MagicBall.Function
 
             bool skipOpenAi = false;
             string aiResponse = "Voix non reconnue.";
-
+            log.LogInformation("Getting voice text.");
             string recognizedText = await SpeechToText(tempFilePath, speechConfig);
             if (string.IsNullOrEmpty(recognizedText))
             {
@@ -117,7 +118,6 @@ namespace MagicBall.Function
         private static async Task<string> SpeechToText(string tempFilePath, SpeechConfig speechConfig)
         {
             using AudioConfig audioConfig = AudioConfig.FromWavFileInput(tempFilePath);
-
             using var recognizer = new SpeechRecognizer(speechConfig, audioConfig);
             var recognitionResult = await recognizer.RecognizeOnceAsync();
             if (recognitionResult.Reason != ResultReason.RecognizedSpeech)
